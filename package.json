@@ -1,6 +1,7 @@
 {
   "name": "ftp-tail",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "description": "Lightweight module to tail files over FTP.",
   "type": "module",
   "main": "index.js",
   "repository": "https://github.com/Thomas-Smyth/ftp-tail.git",
