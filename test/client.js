@@ -7,7 +7,7 @@ const client = new FTPTail({
   password: 'password',
   secure: undefined,
   timeout: undefined,
-  verbose: true,
+  verbose: 1,
   encoding: 'utf8',
 
   path: '/path/to/file',
@@ -17,3 +17,5 @@ const client = new FTPTail({
 });
 
 client.on('line', console.log);
+
+client.watch();

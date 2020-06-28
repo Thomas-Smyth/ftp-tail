@@ -38,71 +38,90 @@ export default class FTPTail extends EventEmitter {
 
   async fetchLoop() {
     while (this.fetchInterval !== -1) {
-      const fetchStartTime = Date.now();
+      try {
+        const fetchStartTime = Date.now();
 
-      // reconnect the client if not connected already
-      if (this.client.closed) {
-        await this.client.access({
-          host: this.options.host,
-          port: this.options.port,
-          user: this.options.user,
-          password: this.options.password,
-          secure: this.options.secure,
-        });
+        // reconnect the client if not connected already
+        if (this.client.closed) {
+          this.log('Reconnecting...');
+          await this.client.access({
+            host: this.options.host,
+            port: this.options.port,
+            user: this.options.user,
+            password: this.options.password,
+            secure: this.options.secure,
+          });
+          this.emit('reconnect');
+          this.log('Reconnected.');
+        }
+
+        // get size of file on remote
+        this.log('Fetching size of file...');
+        const fileSize = await this.client.size(this.options.path);
+        this.log(`File size is ${fileSize}.`);
+
+        // if file has not been tailed before then download last few bytes
+        if (this.lastByteReceived === null || fileSize < this.lastByteReceived) {
+          this.log('Tailing new file.');
+          this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
+        }
+
+        // Download the data to a temp file, overwrite any previous data
+        // overwrite previous data to calculate how much data we've received
+        this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
+        await this.client.downloadTo(
+          fs.createWriteStream(this.tempFilePath, { flags: 'w' }),
+          this.options.path,
+          this.lastByteReceived
+        );
+        this.log(`Downloaded file.`);
+
+        // update the last byte marker - this is so we can get data since this position on the next ftp download
+        const downloadSize = fs.statSync(this.tempFilePath).size;
+        this.lastByteReceived += downloadSize;
+        this.log(`Downloaded file size if ${downloadSize}.`);
+
+        // get contents of file
+        const data = await fs.promises.readFile(this.tempFilePath, 'utf8');
+
+        // only continue if something was fetched
+        if (data.length > 0) {
+          data
+            // strip tailing new lines
+            .replace(/\r\n$/, '')
+            // split on the lines
+            .split('\r\n')
+            // emit each line
+            .forEach((line) => this.emit('line', line));
+        }
+
+        // log fetch time
+        const fetchEndTime = Date.now();
+        const fetchTime = fetchEndTime - fetchStartTime;
+        if (this.options.verbose) this.log(`FTP Fetch took ${fetchTime} ms.`);
+
+        // wait for next fetch
+        if (this.fetchInterval > 0) {
+          this.log(`Sleeping ${this.fetchInterval} ms...`);
+          await new Promise((resolve) => setTimeout(resolve, this.fetchInterval));
+        }
+      } catch (err) {
+        this.log(`Error: ${err.message}`);
+        this.emit('error', err);
       }
-
-      // get size of file on remote
-      const fileSize = await this.client.size(this.options.path);
-
-      // if file has not been tailed before then download last few bytes
-      if (this.lastByteReceived === null || fileSize < this.lastByteReceived) {
-        this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
-      }
-
-      // Download the data to a temp file, overwrite any previous data
-      // overwrite previous data to calculate how much data we've received
-      await this.client.downloadTo(
-        fs.createWriteStream(this.tempFilePath, { flags: 'w' }),
-        this.options.path,
-        this.lastByteReceived
-      );
-
-      // update the last byte marker - this is so we can get data since this position on the next ftp download
-      const downloadSize = fs.statSync(this.tempFilePath).size;
-      this.lastByteReceived += downloadSize;
-
-      // get contents of file
-      const data = await fs.promises.readFile(this.tempFilePath, 'utf8');
-
-      // only continue if something was fetched
-      if (data.length > 0) {
-        data
-          // strip tailing new lines
-          .replace(/\r\n$/, '')
-          // split on the lines
-          .split('\r\n')
-          // emit each line
-          .forEach((line) => this.emit('line', line));
-      }
-
-      // log fetch time
-      const fetchEndTime = Date.now();
-      const fetchTime = fetchEndTime - fetchStartTime;
-      if (this.options.verbose) console.log(`FTP Fetch took: ${fetchTime} ms`);
-
-      // wait for next fetch
-      if (this.fetchInterval > 0)
-        await new Promise((resolve) => setTimeout(resolve, this.fetchInterval));
     }
   }
 
   async watch() {
     // setup client
+    this.log('Initialising client...');
     this.client = new ftp.Client(this.options.timeout);
-    if (this.options.verbose) this.client.ftp.verbose = this.options.verbose;
+    if (this.options.verbose && this.options.verbose >= 2)
+      this.client.ftp.verbose = this.options.verbose;
     if (this.options.encoding) this.client.ftp.encoding = this.options.encoding;
 
     // connect
+    this.log('Connecting...');
     await this.client.access({
       host: this.options.host,
       port: this.options.port,
@@ -110,8 +129,11 @@ export default class FTPTail extends EventEmitter {
       password: this.options.password,
       secure: this.options.secure,
     });
+    this.emit('connect');
+    this.log('Connected.');
 
     // start fetch loop
+    this.log('Commencing fetch loop...');
     this.fetchInterval = this.options.fetchInterval;
     this.fetchLoop();
   }
@@ -120,9 +142,20 @@ export default class FTPTail extends EventEmitter {
     this.fetchInterval = -1;
 
     // disconnect
-    if (!this.client.closed) await this.client.close();
+    if (!this.client.closed) {
+      await this.client.close();
+      this.emit('disconnect');
+      this.log('Disconnected.');
+    }
 
     // delete temp file
-    if (fs.existsSync(this.tempFilePath)) fs.unlinkSync(this.tempFilePath);
+    if (fs.existsSync(this.tempFilePath)) {
+      this.log(`Deleting temp file ${this.tempFilePath}...`);
+      fs.unlinkSync(this.tempFilePath);
+    }
+  }
+
+  log(msg) {
+    if (this.options.verbose >= 1) console.log(`[${Date.now()}] FTPTail (Verbose): ${msg}`);
   }
 }
