@@ -110,6 +110,19 @@ export default class FTPTail extends EventEmitter {
         this.emit('error', err);
       }
     }
+
+    // disconnect
+    if (!this.client.closed) {
+      await this.client.close();
+      this.emit('disconnect');
+      this.log('Disconnected.');
+    }
+
+    // delete temp file
+    if (fs.existsSync(this.tempFilePath)) {
+      this.log(`Deleting temp file ${this.tempFilePath}...`);
+      fs.unlinkSync(this.tempFilePath);
+    }
   }
 
   async watch() {
@@ -140,19 +153,6 @@ export default class FTPTail extends EventEmitter {
 
   async unwatch() {
     this.fetchInterval = -1;
-
-    // disconnect
-    if (!this.client.closed) {
-      await this.client.close();
-      this.emit('disconnect');
-      this.log('Disconnected.');
-    }
-
-    // delete temp file
-    if (fs.existsSync(this.tempFilePath)) {
-      this.log(`Deleting temp file ${this.tempFilePath}...`);
-      fs.unlinkSync(this.tempFilePath);
-    }
   }
 
   log(msg) {
