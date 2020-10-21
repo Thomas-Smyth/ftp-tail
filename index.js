@@ -169,6 +169,13 @@ export default class FTPTail extends EventEmitter {
   async listSize(remotePath) {
     const parsedPath = path.parse(remotePath);
     const fileInfos = await this.client.list(parsedPath.dir);
+
+    this.log(`parsedPath=${parsedPath}`);
+
+    for (let i = 0; i < fileInfos.length; i++) {
+      this.log(`${i}: ${fileInfos[i].name}`);
+    }
+
     const matches = fileInfos.filter((info) => info.name.includes(parsedPath.name));
 
     if (matches.length === 0) {
@@ -176,7 +183,7 @@ export default class FTPTail extends EventEmitter {
     }
 
     if (matches.length > 1) {
-      throw new Error('unable to get file size: multiple matching files');
+      throw new Error(`unable to get file size: multiple matching files: ${matches.length}`);
     }
 
     return matches[0].size;
