@@ -170,13 +170,13 @@ export default class FTPTail extends EventEmitter {
     const parsedPath = path.parse(remotePath);
     const fileInfos = await this.client.list(parsedPath.dir);
 
-    this.log(`parsedPath=${parsedPath}`);
+    this.log(`parsedPath.name=${parsedPath.name}`);
 
     for (let i = 0; i < fileInfos.length; i++) {
       this.log(`${i}: ${fileInfos[i].name}`);
     }
 
-    const matches = fileInfos.filter((info) => info.name.includes(parsedPath.name));
+    const matches = fileInfos.filter((info) => info.name === parsedPath.name);
 
     if (matches.length === 0) {
       throw new Error('unable to get file size: no matching files');
