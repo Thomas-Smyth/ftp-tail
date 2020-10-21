@@ -23,6 +23,8 @@ export default class FTPTail extends EventEmitter {
       fetchInterval: options.fetchInterval || 0,
       maxTempFileSize: options.maxTempFileSize || 5 * 1000 * 1000, // 5 MB
       tailLastBytes: 10 * 1000,
+
+      useListForSize: options.useListForSize || false,
     };
 
     this.tempFilePath = path.join(
@@ -32,6 +34,10 @@ export default class FTPTail extends EventEmitter {
         .update(`${this.options.host}:${this.options.port}:${this.options.path}`)
         .digest('hex') + '.tmp'
     );
+
+    if (this.useListForSize) {
+      this.size = this.listSize;
+    }
 
     this.lastByteReceived = null;
   }
@@ -57,7 +63,7 @@ export default class FTPTail extends EventEmitter {
 
         // get size of file on remote
         this.log('Fetching size of file...');
-        const fileSize = await this.client.size(this.options.path);
+        const fileSize = await this.size(this.options.path);
         this.log(`File size is ${fileSize}.`);
 
         // if file has not been tailed before then download last few bytes
@@ -157,5 +163,25 @@ export default class FTPTail extends EventEmitter {
 
   log(msg) {
     if (this.options.verbose >= 1) console.log(`[${Date.now()}] FTPTail (Verbose): ${msg}`);
+  }
+
+  async listSize(remotePath) {
+    const parsedPath = path.parse(remotePath);
+    const fileInfos = await this.client.list(parsedPath.dir);
+    const matches = fileInfos.filter((info) => info.name.includes(parsedPath.name));
+
+    if (matches.length === 0) {
+      throw new Error('unable to get file size: no matching files');
+    }
+
+    if (matches.length > 1) {
+      throw new Error('unable to get file size: multiple matching files');
+    }
+
+    return matches[0].size;
+  }
+
+  async size(remotePath) {
+    return await this.client.size(remotePath);
   }
 }
