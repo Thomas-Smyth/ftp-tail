@@ -36,6 +36,7 @@ export default class FTPTail extends EventEmitter {
     );
 
     if (this.useListForSize) {
+      this.log('Using SIZE workaround');
       this.size = this.listSize;
     }
 
