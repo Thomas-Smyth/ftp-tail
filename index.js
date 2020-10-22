@@ -63,7 +63,7 @@ export default class FTPTail extends EventEmitter {
         this.log('Fetching size of file...');
         const fileSize = this.options.useListForSize
           ? await this.listSize(this.options.path)
-          : await this.size(this.options.path);
+          : await this.client.size(this.options.path);
         this.log(`File size is ${fileSize}.`);
 
         // if file has not been tailed before then download last few bytes
