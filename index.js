@@ -37,7 +37,6 @@ export default class FTPTail extends EventEmitter {
 
     if (this.options.useListForSize) {
       this.log('Using SIZE workaround');
-      this.size = this.listSize;
     }
 
     this.lastByteReceived = null;
@@ -64,7 +63,9 @@ export default class FTPTail extends EventEmitter {
 
         // get size of file on remote
         this.log('Fetching size of file...');
-        const fileSize = await this.size(this.options.path);
+        const fileSize = this.options.useListForSize
+          ? await this.listSize(this.options.path)
+          : await this.size(this.options.path);
         this.log(`File size is ${fileSize}.`);
 
         // if file has not been tailed before then download last few bytes
@@ -189,9 +190,5 @@ export default class FTPTail extends EventEmitter {
     }
 
     return matches[0].size;
-  }
-
-  async size(remotePath) {
-    return await this.client.size(remotePath);
   }
 }
