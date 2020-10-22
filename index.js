@@ -35,9 +35,7 @@ export default class FTPTail extends EventEmitter {
         .digest('hex') + '.tmp'
     );
 
-    if (this.options.useListForSize) {
-      this.log('Using SIZE workaround');
-    }
+    if (this.options.useListForSize) this.log('Using SIZE workaround');
 
     this.lastByteReceived = null;
   }
