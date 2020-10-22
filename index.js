@@ -93,6 +93,8 @@ export default class FTPTail extends EventEmitter {
 
         // only continue if something was fetched
         if (data.length > 0) {
+          this.log(`data.length=${data.length}`);
+
           data
             // strip tailing new lines
             .replace(/\r\n$/, '')
