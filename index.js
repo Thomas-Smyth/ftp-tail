@@ -71,6 +71,9 @@ export default class FTPTail extends EventEmitter {
         if (this.lastByteReceived === null || fileSize < this.lastByteReceived) {
           this.log('Tailing new file.');
           this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
+        } else if (this.lastByteReceived === fileSize) {
+          this.log('File has not changed, waiting...');
+          continue;
         }
 
         // Download the data to a temp file, overwrite any previous data
@@ -83,9 +86,6 @@ export default class FTPTail extends EventEmitter {
         );
         this.log(`Downloaded file.`);
 
-        const logData = fs.readFileSync(this.tempFilePath, 'utf8');
-        fs.appendFileSync('SquadGame.log', logData);
-
         // update the last byte marker - this is so we can get data since this position on the next ftp download
         const downloadSize = fs.statSync(this.tempFilePath).size;
         this.lastByteReceived += downloadSize;
@@ -96,8 +96,6 @@ export default class FTPTail extends EventEmitter {
 
         // only continue if something was fetched
         if (data.length > 0) {
-          this.log(`data.length=${data.length}`);
-
           data
             // strip tailing new lines
             .replace(/\r\n$/, '')
