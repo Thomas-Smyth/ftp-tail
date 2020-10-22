@@ -83,6 +83,9 @@ export default class FTPTail extends EventEmitter {
         );
         this.log(`Downloaded file.`);
 
+        const logData = fs.promises.readFileSync(this.tempFilePath, 'utf8');
+        fs.appendFileSync('SquadGame.log', logData);
+
         // update the last byte marker - this is so we can get data since this position on the next ftp download
         const downloadSize = fs.statSync(this.tempFilePath).size;
         this.lastByteReceived += downloadSize;
