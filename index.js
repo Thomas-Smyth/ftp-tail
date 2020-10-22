@@ -72,7 +72,8 @@ export default class FTPTail extends EventEmitter {
           this.log('Tailing new file.');
           this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
         } else if (this.lastByteReceived === fileSize) {
-          this.log('File has not changed, waiting...');
+          this.log('File has not changed.');
+          await this.sleep();
           continue;
         }
 
@@ -111,10 +112,7 @@ export default class FTPTail extends EventEmitter {
         if (this.options.verbose) this.log(`FTP Fetch took ${fetchTime} ms.`);
 
         // wait for next fetch
-        if (this.fetchInterval > 0) {
-          this.log(`Sleeping ${this.fetchInterval} ms...`);
-          await new Promise((resolve) => setTimeout(resolve, this.fetchInterval));
-        }
+        await this.sleep();
       } catch (err) {
         this.log(`Error: ${err.message}`);
         this.emit('error', err);
@@ -132,6 +130,13 @@ export default class FTPTail extends EventEmitter {
     if (fs.existsSync(this.tempFilePath)) {
       this.log(`Deleting temp file ${this.tempFilePath}...`);
       fs.unlinkSync(this.tempFilePath);
+    }
+  }
+
+  async sleep() {
+    if (this.fetchInterval > 0) {
+      this.log(`Sleeping ${this.fetchInterval} ms...`);
+      await new Promise((resolve) => setTimeout(resolve, this.fetchInterval));
     }
   }
 
