@@ -87,7 +87,7 @@ export default class FTPTail extends EventEmitter {
         // If the file size has not changed then skip this loop iteration.
         if (fileSize === this.lastByteReceived) {
           this.log('File has not changed.');
-          await this.sleep(this.fetchInterval);
+          await this.sleep(this.options.fetchInterval);
         }
 
         // If the file has not been tailed before or it has been decreased in size download the last
@@ -117,7 +117,7 @@ export default class FTPTail extends EventEmitter {
         // Only continue if something was fetched.
         if (data.length === 0) {
           this.log('No data was fetched.');
-          await this.sleep(this.fetchInterval);
+          await this.sleep(this.options.fetchInterval);
           continue;
         }
 
@@ -134,7 +134,7 @@ export default class FTPTail extends EventEmitter {
         const fetchTime = fetchEndTime - fetchStartTime;
         this.log(`Fetch loop took ${fetchTime}ms.`);
 
-        await this.sleep(this.fetchInterval);
+        await this.sleep(this.options.fetchInterval);
       } catch (err) {
         this.emit('error', err);
         this.log(`Error in fetch loop: ${err.stack}`);
