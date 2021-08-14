@@ -1,192 +1,174 @@
 import crypto from 'crypto';
 import EventEmitter from 'events';
 import fs from 'fs';
+import { readFile } from 'fs/promises';
 import path from 'path';
 
-import ftp from 'basic-ftp';
+import { Client } from 'basic-ftp';
 
 export default class FTPTail extends EventEmitter {
   constructor(options) {
     super();
 
+    // Set default options.
     this.options = {
-      host: options.host,
-      port: options.port,
-      user: options.user,
-      password: options.password,
-      secure: options.secure,
-      timeout: options.timeout,
-      verbose: options.verbose,
-      encoding: options.encoding || 'utf8',
-
-      path: options.path,
-      fetchInterval: options.fetchInterval || 0,
-      maxTempFileSize: options.maxTempFileSize || 5 * 1000 * 1000, // 5 MB
+      ftp: {},
+      fetchInterval: 0,
       tailLastBytes: 10 * 1000,
-
-      useListForSize: options.useListForSize || false,
+      log: false,
+      ...options
     };
 
-    this.tempFilePath = path.join(
+    // Setup basic-ftp client.
+    this.client = new Client(this.options.ftp.timeout);
+    this.client.ftp.encoding = this.options.ftp.encoding || this.client.ftp.encoding;
+
+    // Setup logger.
+    if (typeof this.options.log === 'function') {
+      this.log = this.options.log;
+      this.client.ftp.log = this.options.log;
+    } else if (this.options.log) {
+      this.log = console.log;
+      this.client.ftp.log = console.log;
+    } else {
+      this.log = () => {};
+      this.client.ftp.log = () => {};
+    }
+
+    // Setup internal properties.
+    this.filePath = null;
+    this.lastByteReceived = null;
+
+    this.fetchLoopActive = false;
+    this.fetchLoopPromise = null;
+  }
+
+  async watch(filePath) {
+    this.filePath = filePath;
+
+    // Setup temp file.
+    this.tmpFilePath = path.join(
       process.cwd(),
       crypto
         .createHash('md5')
-        .update(`${this.options.host}:${this.options.port}:${this.options.path}`)
+        .update(`${this.options.ftp.host}:${this.options.ftp.port}:${this.filePath}`)
         .digest('hex') + '.tmp'
     );
 
-    if (this.options.useListForSize) this.log('Using SIZE workaround');
+    // Connect.
+    await this.connect();
 
-    this.lastByteReceived = null;
-  }
-
-  async fetchLoop() {
-    while (this.fetchInterval !== -1) {
-      try {
-        const fetchStartTime = Date.now();
-
-        // reconnect the client if not connected already
-        if (this.client.closed) {
-          this.log('Reconnecting...');
-          await this.client.access({
-            host: this.options.host,
-            port: this.options.port,
-            user: this.options.user,
-            password: this.options.password,
-            secure: this.options.secure,
-          });
-          this.emit('reconnect');
-          this.log('Reconnected.');
-        }
-
-        // get size of file on remote
-        this.log('Fetching size of file...');
-        const fileSize = this.options.useListForSize
-          ? await this.listSize(this.options.path)
-          : await this.client.size(this.options.path);
-        this.log(`File size is ${fileSize}.`);
-
-        // if file has not been tailed before then download last few bytes
-        if (this.lastByteReceived === null || fileSize < this.lastByteReceived) {
-          this.log('Tailing new file.');
-          this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
-        } else if (this.lastByteReceived === fileSize) {
-          this.log('File has not changed.');
-          await this.sleep();
-          continue;
-        }
-
-        // Download the data to a temp file, overwrite any previous data
-        // overwrite previous data to calculate how much data we've received
-        this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
-        await this.client.downloadTo(
-          fs.createWriteStream(this.tempFilePath, { flags: 'w' }),
-          this.options.path,
-          this.lastByteReceived
-        );
-        this.log(`Downloaded file.`);
-
-        // update the last byte marker - this is so we can get data since this position on the next ftp download
-        const downloadSize = fs.statSync(this.tempFilePath).size;
-        this.lastByteReceived += downloadSize;
-        this.log(`Downloaded file size if ${downloadSize}.`);
-
-        // get contents of file
-        const data = await fs.promises.readFile(this.tempFilePath, 'utf8');
-
-        // only continue if something was fetched
-        if (data.length > 0) {
-          data
-            // strip tailing new lines
-            .replace(/\r\n$/, '')
-            // split on the lines
-            .split('\r\n')
-            // emit each line
-            .forEach((line) => this.emit('line', line));
-        }
-
-        // log fetch time
-        const fetchEndTime = Date.now();
-        const fetchTime = fetchEndTime - fetchStartTime;
-        if (this.options.verbose) this.log(`FTP Fetch took ${fetchTime} ms.`);
-
-        // wait for next fetch
-        await this.sleep();
-      } catch (err) {
-        this.log(`Error: ${err.message}`);
-        this.emit('error', err);
-      }
-    }
-
-    // disconnect
-    if (!this.client.closed) {
-      await this.client.close();
-      this.emit('disconnect');
-      this.log('Disconnected.');
-    }
-
-    // delete temp file
-    if (fs.existsSync(this.tempFilePath)) {
-      this.log(`Deleting temp file ${this.tempFilePath}...`);
-      fs.unlinkSync(this.tempFilePath);
-    }
-  }
-
-  async sleep() {
-    if (this.fetchInterval > 0) {
-      this.log(`Sleeping ${this.fetchInterval} ms...`);
-      await new Promise((resolve) => setTimeout(resolve, this.fetchInterval));
-    }
-  }
-
-  async watch() {
-    // setup client
-    this.log('Initialising client...');
-    this.client = new ftp.Client(this.options.timeout);
-    if (this.options.verbose && this.options.verbose >= 2)
-      this.client.ftp.verbose = this.options.verbose;
-    if (this.options.encoding) this.client.ftp.encoding = this.options.encoding;
-
-    // connect
-    this.log('Connecting...');
-    await this.client.access({
-      host: this.options.host,
-      port: this.options.port,
-      user: this.options.user,
-      password: this.options.password,
-      secure: this.options.secure,
-    });
-    this.emit('connect');
-    this.log('Connected.');
-
-    // start fetch loop
-    this.log('Commencing fetch loop...');
-    this.fetchInterval = this.options.fetchInterval;
-    this.fetchLoop();
+    // Start fetch loop.
+    this.log('Starting fetch loop...');
+    this.fetchLoopActive = true;
+    this.fetchLoopPromise = this.fetchLoop();
   }
 
   async unwatch() {
-    this.fetchInterval = -1;
+    this.log('Stopping fetch loop...');
+    this.fetchLoopActive = false;
+    await this.fetchLoopPromise;
   }
 
-  log(msg) {
-    if (this.options.verbose >= 1) console.log(`[${Date.now()}] FTPTail (Verbose): ${msg}`);
+  async fetchLoop() {
+    while (this.fetchLoopActive) {
+      try {
+        // Store the start time of the loop.
+        const fetchStartTime = Date.now();
+
+        // Reconnect the FTP client in case it has disconnected.
+        await this.connect();
+
+        // Get the size of the file on the FTP server.
+        this.log('Fetching size of file...');
+        const fileSize = await this.client.size(this.filePath);
+        this.log(`File size is ${fileSize}.`);
+
+        // If the file size has not changed then skip this loop iteration.
+        if (fileSize === this.lastByteReceived) {
+          this.log('File has not changed.');
+          await this.sleep(this.fetchInterval);
+        }
+
+        // If the file has not been tailed before or it has been decreased in size download the last
+        // few bytes.
+        if (this.lastByteReceived === null || this.lastByteReceived > fileSize) {
+          this.log('File has not been tailed before or has decreased in size.');
+          this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
+        }
+
+        // Download the data to a temp file overwritting any previous data.
+        this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
+        await this.client.downloadTo(
+          fs.createWriteStream(this.tmpFilePath, { flags: 'w' }),
+          this.filePath,
+          this.lastByteReceived
+        );
+
+        // Update the last byte marker - this is so we can get data since this position on the next
+        // FTP download.
+        const downloadSize = fs.statSync(this.tmpFilePath).size;
+        this.lastByteReceived += downloadSize;
+        this.log(`Downloaded file of size ${downloadSize}.`);
+
+        // Get contents of download.
+        const data = await readFile(this.tmpFilePath, 'utf8');
+
+        // Only continue if something was fetched.
+        if (data.length === 0) {
+          this.log('No data was fetched.');
+          await this.sleep(this.fetchInterval);
+          continue;
+        }
+
+        data
+          // Remove trailing new lines.
+          .replace(/\r\n$/, '')
+          // Split the data on the lines.
+          .split('\r\n')
+          // Emit each line.
+          .forEach((line) => this.emit('line', line));
+
+        // Log the loop runtime.
+        const fetchEndTime = Date.now();
+        const fetchTime = fetchEndTime - fetchStartTime;
+        this.log(`Fetch loop took ${fetchTime}ms.`);
+
+        await this.sleep(this.fetchInterval);
+      } catch (err) {
+        this.emit('error', err);
+        this.log(`Error in fetch loop: ${err.stack}`);
+      }
+    }
+
+    if (fs.existsSync(this.tmpFilePath)) {
+      fs.unlinkSync(this.tmpFilePath);
+      this.log('Deleted temp file.');
+    }
+
+    await this.disconnect();
   }
 
-  async listSize(remotePath) {
-    const parsedPath = path.parse(remotePath);
-    const fileInfos = await this.client.list(parsedPath.dir);
+  async connect() {
+    if (!this.client.closed) return;
 
-    const matches = fileInfos.filter((info) => info.name === parsedPath.base);
+    this.log('Connecting to FTP server...');
+    await this.client.access(this.options.ftp);
+    this.emit('connected');
+    this.log('Connected to FTP server.');
+  }
 
-    if (matches.length === 0) {
-      throw new Error('unable to get file size: no matching files');
-    }
+  async disconnect() {
+    if (this.client.closed) return;
 
-    if (matches.length > 1) {
-      throw new Error(`unable to get file size: multiple matching files: ${matches.length}`);
-    }
+    this.log('Disconnecting from FTP server...');
+    await this.client.close();
+    this.emit('disconnect');
+    this.log('Disconnected from FTP server.');
+  }
 
-    return matches[0].size;
+  async sleep(ms) {
+    this.log(`Sleeping for ${ms} seconds...`);
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

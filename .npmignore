@@ -1,14 +1,10 @@
 # Project files
 *.tmp
 
-test/
-
+.github/
+.husky/
 .eslintignore
-.eslintrc
 .gitignore
-.huskyrc
-.lintstagedrc
-.prettierrc
 
 # Dependencies
 node_modules/
