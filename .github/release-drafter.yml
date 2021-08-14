@@ -1,0 +1,34 @@
+# General options
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
+
+# Release options
+name-template: 'ftp-tail v$RESOLVED_VERSION Release'
+tag-template: 'v$RESOLVED_VERSION'
+
+template: |
+  ## Changelog
+  $CHANGES
+
+  ## Credits
+  $CONTRIBUTORS
+
+category-template: '### $TITLE'
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+  - title: '🧰 Maintenance'
+    label: 'chore'
