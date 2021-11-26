@@ -39,6 +39,7 @@ import FTPTail from 'ftp-tail';
         encoding: 'utf8' // Encoding (optional).
       },
 
+      mode: 'ftp' // Supports ftp and sftp
       fetchInterval: 0, // Delay between polls.
       log: true // Enable logging (also accepts logging function).
     }
