@@ -46,7 +46,8 @@
     ]
   },
   "dependencies": {
-    "basic-ftp": "^4.6.6"
+    "basic-ftp": "^4.6.6",
+    "ssh2-sftp-client":"^7.1.0"
   },
   "devDependencies": {
     "eslint": "^7.32.0",
