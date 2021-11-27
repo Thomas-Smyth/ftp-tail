@@ -1,15 +1,15 @@
 import sftp from 'ssh2-sftp-client';
 
 export class SFTPClient {
-  constructor(timeout, logger, encoding) {
-    this.encoding = encoding;
-    this.timeout = timeout;
-    this.log = logger;
+  constructor(options) {
+    this.encoding = options.encoding;
+    this.timeout = options.timeout;
+    this.log = options.logger;
 
     this.readOptions = {
       readStreamOptions: {
         flags: 'r',
-        encoding: this.encoding,
+        encoding: this.encoding
       },
       pipeOptions: {
         end: false
@@ -25,16 +25,11 @@ export class SFTPClient {
   }
 
   async size(path) {
-    if (this.connectionClosed) throw Exception('Connect first in order to use this function');
-
-    this.log(`Getting size for file ${path}`);
-
     return this.connection
       .then(() => {
         return this.client.stat(path);
       })
       .then((data) => {
-        this.log(`File size ${data.size}`);
         return data.size;
       })
       .catch((err) => {
@@ -42,20 +37,17 @@ export class SFTPClient {
       });
   }
 
-  async access(options = {}) {
+  async connect(options = {}) {
     // ssh2-sftp-client requires username instead of user.
     options.username = options.user;
     options.readyTimeout = this.timeout;
+    options.debug = this.log;
 
-    this.log('Setting up sftp connection');
     this.connection = this.client.connect(options);
     this.connectionClosed = false;
   }
 
   async downloadTo(destination, fromRemotePath, startAt = 0) {
-    if (this.connectionClosed) throw Exception('Connect first in order to use this function');
-
-    this.log(`Reading file starting from ${startAt}`);
     this.readOptions.readStreamOptions.start = startAt;
 
     return this.connection
@@ -68,7 +60,6 @@ export class SFTPClient {
   }
 
   close() {
-    this.log('Closing connection');
     this.client.end();
   }
 

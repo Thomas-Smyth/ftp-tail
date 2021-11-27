@@ -1,4 +1,4 @@
-import { FTPClient } from "./ftp.js";
-import { SFTPClient } from "./sftp.js";
+import { FTPClient } from './ftp.js';
+import { SFTPClient } from './sftp.js';
 
 export { FTPClient, SFTPClient };

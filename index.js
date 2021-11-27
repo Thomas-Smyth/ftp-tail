@@ -159,7 +159,7 @@ export default class FTPTail extends EventEmitter {
     if (!this.client.closed) return;
 
     this.log('Connecting to FTP server...');
-    await this.client.access(this.options.ftp);
+    await this.client.connect(this.options.ftp);
     this.emit('connected');
     this.log('Connected to FTP server.');
   }

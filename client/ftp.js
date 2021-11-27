@@ -1,17 +1,17 @@
 import Client from 'basic-ftp';
 
 export class FTPClient {
-  constructor(timeout, logger, encoding) {
-    this.client = new Client(timeout);
-    this.client.ftp.encoding = encoding || this.client.ftp.encoding;
-    this.client.ftp.log = logger;
+  constructor(options) {
+    this.client = new Client(options.timeout);
+    this.client.ftp.encoding = options.encoding || this.client.ftp.encoding;
+    this.client.ftp.log = options.logger;
   }
 
   async size(path) {
     return this.client.size(path);
   }
 
-  async access(options = {}) {
+  async connect(options = {}) {
     return this.client.access(options);
   }
 
