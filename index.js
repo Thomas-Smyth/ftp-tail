@@ -4,7 +4,7 @@ import fs from 'fs';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-import { Client } from 'basic-ftp';
+import { FTPClient, SFTPClient } from './client/index.js';
 
 export default class FTPTail extends EventEmitter {
   constructor(options) {
@@ -16,23 +16,35 @@ export default class FTPTail extends EventEmitter {
       fetchInterval: 0,
       tailLastBytes: 10 * 1000,
       log: false,
+      mode: 'ftp',
       ...options
     };
-
-    // Setup basic-ftp client.
-    this.client = new Client(this.options.ftp.timeout);
-    this.client.ftp.encoding = this.options.ftp.encoding || this.client.ftp.encoding;
 
     // Setup logger.
     if (typeof this.options.log === 'function') {
       this.log = this.options.log;
-      this.client.ftp.log = this.options.log;
     } else if (this.options.log) {
       this.log = console.log;
-      this.client.ftp.log = console.log;
     } else {
       this.log = () => {};
-      this.client.ftp.log = () => {};
+    }
+
+    // Client dfeault parameters
+    let clientOptions = {
+      timeout: this.options.ftp.timeout,
+      log: this.log,
+      encoding: this.options.ftp.encoding
+    };
+
+    switch (options.mode) {
+      case 'ftp':
+        this.client = new FTPClient(clientOptions);
+        break;
+      case 'sftp':
+        this.client = new SFTPClient(clientOptions);
+        break;
+      default:
+        throw new Error('Invalid mode.');
     }
 
     // Setup internal properties.
@@ -88,6 +100,7 @@ export default class FTPTail extends EventEmitter {
         if (fileSize === this.lastByteReceived) {
           this.log('File has not changed.');
           await this.sleep(this.options.fetchInterval);
+          continue;
         }
 
         // If the file has not been tailed before or it has been decreased in size download the last
@@ -153,7 +166,7 @@ export default class FTPTail extends EventEmitter {
     if (!this.client.closed) return;
 
     this.log('Connecting to FTP server...');
-    await this.client.access(this.options.ftp);
+    await this.client.connect(this.options.ftp);
     this.emit('connected');
     this.log('Connected to FTP server.');
   }
