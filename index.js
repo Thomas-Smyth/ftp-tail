@@ -29,12 +29,19 @@ export default class FTPTail extends EventEmitter {
       this.log = () => {};
     }
 
+    // Client dfeault parameters
+    let clientOptions = {
+      timeout: this.options.ftp.timeout,
+      log: this.log,
+      encoding: this.options.ftp.encoding
+    };
+
     switch (options.mode) {
       case 'ftp':
-        this.client = new FTPClient(this.options.ftp.timeout, this.log, this.options.ftp.encoding);
+        this.client = new FTPClient(clientOptions);
         break;
       case 'sftp':
-        this.client = new SFTPClient(this.options.ftp.timeout, this.log, this.options.ftp.encoding);
+        this.client = new SFTPClient(clientOptions);
         break;
       default:
         throw new Error('Invalid mode.');

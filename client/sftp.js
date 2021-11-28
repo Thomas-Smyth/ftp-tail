@@ -18,23 +18,14 @@ export class SFTPClient {
 
     this.client = new sftp();
 
-    this.connectionClosed = true;
+    this.closed = true;
 
     this.client.on('close', this.closedConnection);
     this.client.on('end', this.closedConnection);
   }
 
   async size(path) {
-    return this.connection
-      .then(() => {
-        return this.client.stat(path);
-      })
-      .then((data) => {
-        return data.size;
-      })
-      .catch((err) => {
-        console.error(err.message);
-      });
+    return (await this.client.stat(path)).size;
   }
 
   async connect(options = {}) {
@@ -43,32 +34,21 @@ export class SFTPClient {
     options.readyTimeout = this.timeout;
     options.debug = this.log;
 
-    this.connection = this.client.connect(options);
-    this.connectionClosed = false;
+    await this.client.connect(options);
+    this.closed = false;
   }
 
   async downloadTo(destination, fromRemotePath, startAt = 0) {
     this.readOptions.readStreamOptions.start = startAt;
 
-    return this.connection
-      .then(() => {
-        return this.client.get(fromRemotePath, destination, this.readOptions);
-      })
-      .catch((err) => {
-        console.error(err.message);
-      });
+    return this.client.get(fromRemotePath, destination, this.readOptions);
   }
 
   close() {
     this.client.end();
   }
 
-  get closed() {
-    return this.connectionClosed;
-  }
-
   closedConnection() {
-    this.connectionListenerAdded = true;
-    this.connectionClosed = true;
+    this.closed = true;
   }
 }
