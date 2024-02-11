@@ -9,7 +9,9 @@
   "author": "Thomas Smyth <https://github.com/Thomas-Smyth>",
   "license": "MIT",
   "scripts": {
+    "prepack": "yarn run build",
     "prepare": "node .husky/install.mjs",
+    "build": "tsc",
     "lint": "eslint --fix . && prettier --write \"./**/*.ts\"",
     "lint-staged": "lint-staged"
   },
