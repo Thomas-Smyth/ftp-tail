@@ -10,7 +10,7 @@
   "license": "MIT",
   "scripts": {
     "prepare": "node .husky/install.mjs",
-    "lint": "eslint --fix . && prettier --write \"./**/*.js\"",
+    "lint": "eslint --fix . && prettier --write \"./**/*.ts\"",
     "lint-staged": "lint-staged"
   },
   "engines": {
@@ -43,9 +43,9 @@
     "trailingComma": "none"
   },
   "lint-staged": {
-    "*.js": [
-      "eslint --fix .",
-      "prettier --write \"./**/*.js\""
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
     ]
   },
   "dependencies": {
