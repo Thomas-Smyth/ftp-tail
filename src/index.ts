@@ -1,13 +1,49 @@
-import crypto from 'crypto';
-import EventEmitter from 'events';
-import fs from 'fs';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import { Client, StringEncoding } from 'basic-ftp';
+import { createHash } from 'node:crypto';
+import EventEmitter from 'node:events';
+import { createWriteStream, existsSync, statSync, unlinkSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { StrictEventEmitter } from 'strict-event-emitter-types';
 
-import { Client } from 'basic-ftp';
+interface FtpTailEvents {
+  line: (data: string) => void;
+  error: (error: unknown) => void;
+  connected: void;
+  disconnect: void;
+}
 
-export default class FTPTail extends EventEmitter {
-  constructor(options) {
+type FtpTailEventEmitter = StrictEventEmitter<EventEmitter, FtpTailEvents>;
+
+interface FtpOptions {
+  host?: string;
+  port?: number;
+  timeout?: number;
+  encoding?: StringEncoding;
+}
+
+type Logger = (message?: any, ...optionalParams: any[]) => void;
+
+export interface FtpTailOptions {
+  ftp: FtpOptions;
+  fetchInterval: number;
+  tailLastBytes: number;
+  log: Logger | boolean;
+}
+
+export default class FtpTail extends (EventEmitter as { new (): FtpTailEventEmitter }) {
+  private options: FtpTailOptions;
+  private client: Client;
+  private log: Logger;
+
+  // Setup internal properties.
+  private lastByteReceived: number | null = null;
+
+  private fetchLoopActive = false;
+  private fetchLoopPromise: Promise<void> | null = null;
+
+  constructor(options: Partial<FtpTailOptions>) {
+    // eslint-disable-next-line constructor-super
     super();
 
     // Set default options.
@@ -21,7 +57,7 @@ export default class FTPTail extends EventEmitter {
 
     // Setup basic-ftp client.
     this.client = new Client(this.options.ftp.timeout);
-    this.client.ftp.encoding = this.options.ftp.encoding || this.client.ftp.encoding;
+    if (this.options.ftp.encoding) this.client.ftp.encoding = this.options.ftp.encoding;
 
     // Setup logger.
     if (typeof this.options.log === 'function') {
@@ -34,24 +70,14 @@ export default class FTPTail extends EventEmitter {
       this.log = () => {};
       this.client.ftp.log = () => {};
     }
-
-    // Setup internal properties.
-    this.filePath = null;
-    this.lastByteReceived = null;
-
-    this.fetchLoopActive = false;
-    this.fetchLoopPromise = null;
   }
 
-  async watch(filePath) {
-    this.filePath = filePath;
-
+  async watch(filePath: string) {
     // Setup temp file.
-    this.tmpFilePath = path.join(
+    const tmpFilePath = join(
       process.cwd(),
-      crypto
-        .createHash('md5')
-        .update(`${this.options.ftp.host}:${this.options.ftp.port}:${this.filePath}`)
+      createHash('md5')
+        .update(`${this.options.ftp.host}:${this.options.ftp.port}:${filePath}`)
         .digest('hex') + '.tmp'
     );
 
@@ -61,7 +87,7 @@ export default class FTPTail extends EventEmitter {
     // Start fetch loop.
     this.log('Starting fetch loop...');
     this.fetchLoopActive = true;
-    this.fetchLoopPromise = this.fetchLoop();
+    this.fetchLoopPromise = this.fetchLoop(filePath, tmpFilePath);
   }
 
   async unwatch() {
@@ -70,7 +96,7 @@ export default class FTPTail extends EventEmitter {
     await this.fetchLoopPromise;
   }
 
-  async fetchLoop() {
+  async fetchLoop(filePath: string, tmpFilePath: string): Promise<void> {
     while (this.fetchLoopActive) {
       try {
         // Store the start time of the loop.
@@ -81,7 +107,7 @@ export default class FTPTail extends EventEmitter {
 
         // Get the size of the file on the FTP server.
         this.log('Fetching size of file...');
-        const fileSize = await this.client.size(this.filePath);
+        const fileSize = await this.client.size(filePath);
         this.log(`File size is ${fileSize}.`);
 
         // If the file size has not changed then skip this loop iteration.
@@ -100,19 +126,19 @@ export default class FTPTail extends EventEmitter {
         // Download the data to a temp file overwritting any previous data.
         this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
         await this.client.downloadTo(
-          fs.createWriteStream(this.tmpFilePath, { flags: 'w' }),
-          this.filePath,
+          createWriteStream(tmpFilePath, { flags: 'w' }),
+          filePath,
           this.lastByteReceived
         );
 
         // Update the last byte marker - this is so we can get data since this position on the next
         // FTP download.
-        const downloadSize = fs.statSync(this.tmpFilePath).size;
+        const downloadSize = statSync(tmpFilePath).size;
         this.lastByteReceived += downloadSize;
         this.log(`Downloaded file of size ${downloadSize}.`);
 
         // Get contents of download.
-        const data = await readFile(this.tmpFilePath, 'utf8');
+        const data = await readFile(tmpFilePath, 'utf8');
 
         // Only continue if something was fetched.
         if (data.length === 0) {
@@ -137,12 +163,12 @@ export default class FTPTail extends EventEmitter {
         await this.sleep(this.options.fetchInterval);
       } catch (err) {
         this.emit('error', err);
-        this.log(`Error in fetch loop: ${err.stack}`);
+        this.log(`Error in fetch loop: ${err instanceof Error ? err.stack : err}`);
       }
     }
 
-    if (fs.existsSync(this.tmpFilePath)) {
-      fs.unlinkSync(this.tmpFilePath);
+    if (existsSync(tmpFilePath)) {
+      unlinkSync(tmpFilePath);
       this.log('Deleted temp file.');
     }
 
@@ -167,7 +193,7 @@ export default class FTPTail extends EventEmitter {
     this.log('Disconnected from FTP server.');
   }
 
-  async sleep(ms) {
+  async sleep(ms: number) {
     this.log(`Sleeping for ${ms} seconds...`);
     await new Promise((resolve) => setTimeout(resolve, ms));
   }

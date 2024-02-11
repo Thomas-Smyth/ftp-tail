@@ -1,10 +1,12 @@
 # Project files
 *.tmp
+src/
 
 .github/
 .husky/
 .eslintignore
 .gitignore
+tsconfig.json
 
 # Dependencies
 node_modules/

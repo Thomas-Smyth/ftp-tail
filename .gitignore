@@ -1,5 +1,6 @@
 # Project Files
 *.tmp
+dist/
 
 # Dependencies
 node_modules/
