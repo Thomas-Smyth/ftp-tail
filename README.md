@@ -18,11 +18,12 @@
 Need to tail a file on a remote server? ftp-tail should be able to help!
 
 ## **Motivation**
-To collect the data we needed to build [SquadJS](https://github.com/Thomas-Smyth/SquadJS), a scripting framework for [Squad](https://joinsquad.com/) servers, we found we needed to tail the Squad server's log files. As a result of this, it became a requirement that SquadJS must be installed on the same machine as the Squad server, however, this prevented anyone using rented Squad server instances from using SquadJS. Thus, we endeavoured to make it possible for these logs files to be streamed over the FTP servers provided by most hosts - ftp-tail is the outcome of this and we have opened-sourced it for others to benefit from.
+To collect the data we needed to build [SquadJS](https://github.com/Thomas-Smyth/SquadJS), a scripting framework for [Squad](https://joinsquad.com/) servers, we found we needed to tail the Squad server's log files. As a result of this, it became a requirement that SquadJS must be installed on the same machine as the Squad server, however, this prevented anyone using rented Squad server instances from using SquadJS. Thus, we endeavoured to make it possible for these logs files to be streamed over the FTP and SFTP servers provided by most hosts - ftp-tail is the outcome of this and we have opened-sourced it for others to benefit from.
 
 ## **Usage**
+### **FTP**
 ```js
-import FTPTail from 'ftp-tail';
+import { FTPTail } from 'ftp-tail';
 
 (async () => {
   // Initiate FTPTail...
@@ -37,6 +38,37 @@ import FTPTail from 'ftp-tail';
         // As well as...
         timeout: 5 * 1000, // Timeout (optional).
         encoding: 'utf8' // Encoding (optional).
+      },
+
+      fetchInterval: 0, // Delay between polls.
+      log: true // Enable logging (also accepts logging function).
+    }
+  );
+
+  // Do something with the lines, e.g. log them.
+  tailer.on('line', console.log);
+
+  // Watch the file...
+  await tailer.watch('/SquadGame.log');
+  
+  // Unwatch the file...
+  await tailer.unwatch();
+})();
+```
+
+### **SFTP**
+```js
+import { SFTPTail } from 'ftp-tail';
+
+(async () => {
+  // Initiate FTPTail...
+  const tailer = new SFTPTail(
+    {
+      ftp: {
+        // ssh2-sftp-client's .connect options.
+        host: "xxx.xxx.xxx.xxx",
+        user: "user",
+        password: "password",
       },
 
       fetchInterval: 0, // Delay between polls.
