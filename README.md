@@ -67,7 +67,7 @@ import { SFTPTail } from 'ftp-tail';
       ftp: {
         // ssh2-sftp-client's .connect options.
         host: "xxx.xxx.xxx.xxx",
-        user: "user",
+        username: "user",
         password: "password",
       },
 

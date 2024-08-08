@@ -97,16 +97,11 @@ export class SFTPTail extends EventEmitter {
 
         // Download the data to a temp file overwritting any previous data.
         this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
-        await this.client.get(
-          this.filePath,
-          this.tmpFilePath,
-          { flags: 'w' },
-          {
-            readStreamOptions: {
-              start: this.lastByteReceived
-            }
+        await this.client.get(this.filePath, this.tmpFilePath, {
+          readStreamOptions: {
+            start: this.lastByteReceived
           }
-        );
+        });
 
         // Update the last byte marker - this is so we can get data since this position on the next
         // FTP download.
