@@ -92,18 +92,19 @@ export class SFTPTail extends EventEmitter {
         // few bytes.
         if (this.lastByteReceived === null || this.lastByteReceived > fileSize) {
           this.log('File has not been tailed before or has decreased in size.');
-          this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
+          this.lastByteReceived = fileSize;
+          await this.sleep(this.options.fetchInterval);
         }
 
         // Download the data to a temp file overwritting any previous data.
         this.log(`Downloading file with offset of ${this.lastByteReceived}...`);
         await this.client.get(
           this.filePath,
-          this.tmpFilePath,
-          { flags: 'w' },
+          fs.createWriteStream(this.tmpFilePath, { flags: 'w' }),
           {
             readStreamOptions: {
-              start: this.lastByteReceived
+              start: this.lastByteReceived,
+              end: fileSize
             }
           }
         );
