@@ -88,11 +88,17 @@ export class SFTPTail extends EventEmitter {
           await this.sleep(this.options.fetchInterval);
         }
 
-        // If the file has not been tailed before or it has been decreased in size download the last
-        // few bytes.
-        if (this.lastByteReceived === null || this.lastByteReceived > fileSize) {
-          this.log('File has not been tailed before or has decreased in size.');
+        // If the file has not been tailed before download the last few bytes.
+        if (this.lastByteReceived === null) {
+          this.log('File has not been tailed before.');
           this.lastByteReceived = Math.max(0, fileSize - this.options.tailLastBytes);
+        }
+
+        // If the file has decreased in size it was replaced, e.g. by log rotation, so download the new
+        // file from its start. Starting at the last few bytes would skip lines written before this poll.
+        if (this.lastByteReceived > fileSize) {
+          this.log('File has decreased in size.');
+          this.lastByteReceived = 0;
         }
 
         // Download the data to a temp file overwritting any previous data.
