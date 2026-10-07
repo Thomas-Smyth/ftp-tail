@@ -41,6 +41,7 @@ import { FTPTail } from 'ftp-tail';
       },
 
       fetchInterval: 0, // Delay between polls.
+      tailLastBytes: 10 * 1000, // Bytes of the existing file to read on the first poll.
       log: true // Enable logging (also accepts logging function).
     }
   );
@@ -72,6 +73,7 @@ import { SFTPTail } from 'ftp-tail';
       },
 
       fetchInterval: 0, // Delay between polls.
+      tailLastBytes: 10 * 1000, // Bytes of the existing file to read on the first poll.
       log: true // Enable logging (also accepts logging function).
     }
   );
