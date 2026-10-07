@@ -41,6 +41,7 @@ import { FTPTail } from 'ftp-tail';
       },
 
       fetchInterval: 0, // Delay between polls.
+      retryInterval: 5 * 1000, // Delay after a failed poll.
       log: true // Enable logging (also accepts logging function).
     }
   );
@@ -72,6 +73,7 @@ import { SFTPTail } from 'ftp-tail';
       },
 
       fetchInterval: 0, // Delay between polls.
+      retryInterval: 5 * 1000, // Delay after a failed poll.
       log: true // Enable logging (also accepts logging function).
     }
   );

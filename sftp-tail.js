@@ -14,6 +14,7 @@ export class SFTPTail extends EventEmitter {
     this.options = {
       sftp: {},
       fetchInterval: 0,
+      retryInterval: 5 * 1000,
       tailLastBytes: 10 * 1000,
       ...options
     };
@@ -136,6 +137,9 @@ export class SFTPTail extends EventEmitter {
       } catch (err) {
         this.emit('error', err);
         this.log(`Error in fetch loop: ${err.stack}`);
+
+        // Wait before the next attempt, so that a server that is down is not polled in a tight loop.
+        await this.sleep(this.options.retryInterval);
       }
     }
 
